@@ -1,0 +1,27 @@
+{
+  "name": "spotify-connect-ws",
+  "version": "0.0.2",
+  "description": "A WebSockets solution for Spotify's Connect API made using socket.io.",
+  "main": "index.js",
+  "author": "Lawrence Holmes",
+  "license": "MIT",
+  "scripts": {
+    "lint": "eslint .",
+    "build": "yarn lint && babel -d ./build ./src"
+  },
+  "dependencies": {
+    "babel-core": "^6.26.0",
+    "babel-plugin-transform-object-rest-spread": "^6.26.0",
+    "node-fetch": "^1.7.3"
+  },
+  "devDependencies": {
+    "babel-cli": "^6.26.0",
+    "babel-preset-env": "^1.6.1",
+    "eslint": "^4.10.0",
+    "eslint-config-standard": "^10.2.1",
+    "eslint-plugin-import": "^2.8.0",
+    "eslint-plugin-node": "^5.2.1",
+    "eslint-plugin-promise": "^3.6.0",
+    "eslint-plugin-standard": "^3.0.1"
+  }
+}
