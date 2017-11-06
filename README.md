@@ -13,6 +13,8 @@ As of right now, this package is the result half a day's work (inc. learning Web
 ### Usage
 This package has been developed to work with an Express + Socket.IO server environment.
 
+If you want to skip the server setup and go straight to working with your app, use this testing url in the meantime: https://spotify-connect-ws.herokuapp.com/connect
+
 Server:
 ```bash
 npm install spotify-connect-ws --save
@@ -43,6 +45,8 @@ yarn add socket.io-client
 ```js
   import openSocket from 'socket.io-client'
   const io = openSocket('/connect')
+  // or if using testing url
+  const io = openSocket('https://spotify-connect-ws.herokuapp.com/connect')
 
   io.emit('initiate', { accessToken: 'access token' })
 
