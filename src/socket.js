@@ -38,9 +38,7 @@ const spotifyConnectWs = socket => {
       )
     }
 
-    if (accessToken) {
-      socket.accessToken = accessToken
-    }
+    socket.accessToken = accessToken
 
     getPlayerState(socket.accessToken)
       .then(playerState => {
@@ -86,7 +84,7 @@ const spotifyConnectWs = socket => {
                 playerState.device.volume_percent !==
                 socket.playerState.device.volume_percent
               ) {
-                // device has changed
+                // volume has changed
                 socket.emit('volume_change', playerState.device.volume_percent)
               }
             }
