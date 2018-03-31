@@ -29,6 +29,14 @@ const spotifyConnectWs = socket => {
     next()
   })
 
+  const handleError = error => {
+    const message = error.message || error
+    if (message !== socket.lastSentError) {
+      socket.emit(C.CONNECT_ERROR, error)
+      socket.lastSentError = message
+    }
+  }
+
   socket.on('disconnect', () => {
     clearInterval(socket.poll)
   })
@@ -43,110 +51,103 @@ const spotifyConnectWs = socket => {
 
     socket.accessToken = accessToken
 
-    getPlayerState(socket.accessToken)
-      .then(playerState => {
-        socket.emit('initial_state', playerState)
-        socket.playerState = playerState
-        socket.poll = setInterval(() => {
-          getPlayerState(socket.accessToken)
-            .then(playerState => {
-              if (playerState.item.id !== socket.playerState.item.id) {
-                // track has changed
-                socket.emit('track_change', playerState.item)
-                socket.hasNotifiedTrackEnd = false
-              } else {
-                // track is the same, check if it has been scrubbed
-                if (playerState.is_playing) {
-                  const negativeProgress =
-                    playerState.progress_ms >
-                    socket.playerState.progress_ms + C.HAS_SCRUBBED_THRESHOLD
-                  const positiveProgess =
-                    playerState.progress_ms <
-                    socket.playerState.progress_ms - C.HAS_SCRUBBED_THRESHOLD
-                  if (negativeProgress || positiveProgess) {
-                    socket.emit(
-                      'seek',
-                      playerState.progress_ms,
-                      playerState.timestamp
-                    )
-                  }
-                }
+    socket.poll = setInterval(() => {
+      getPlayerState(socket.accessToken)
+        .then(playerState => {
+          if (!playerState.device) {
+            if (!socket.awaitingDevice) {
+              socket.emit(C.CONNECT_ERROR, 'No Active Device')
+              socket.awaitingDevice = true
+            }
+            return
+          }
+          socket.awaitingDevice = false
+          if (!socket.hasSentInitialState) {
+            socket.emit('initial_state', playerState)
+            socket.playerState = playerState
+            socket.hasSentInitialState = true
+            return
+          }
+          if (playerState.item.id !== socket.playerState.item.id) {
+            // track has changed
+            socket.emit('track_change', playerState.item)
+            socket.hasNotifiedTrackEnd = false
+          } else {
+            // track is the same, check if it has been scrubbed
+            if (playerState.is_playing) {
+              const negativeProgress =
+                playerState.progress_ms >
+                socket.playerState.progress_ms + C.HAS_SCRUBBED_THRESHOLD
+              const positiveProgess =
+                playerState.progress_ms <
+                socket.playerState.progress_ms - C.HAS_SCRUBBED_THRESHOLD
+              if (negativeProgress || positiveProgess) {
+                socket.emit(
+                  'seek',
+                  playerState.progress_ms,
+                  playerState.timestamp
+                )
               }
-              if (playerState.is_playing !== socket.playerState.is_playing) {
-                // play state has changed
-                const event = playerState.is_playing
-                  ? 'playback_started'
-                  : 'playback_paused'
-                socket.emit(event)
-              }
-              if (playerState.device.id !== socket.playerState.device.id) {
-                // device has changed
-                socket.emit('device_change', playerState.device)
-              } else {
-                // device is the same, check volume
-                if (
-                  playerState.device.volume_percent !==
-                  socket.playerState.device.volume_percent
-                ) {
-                  // volume has changed
-                  socket.emit(
-                    'volume_change',
-                    playerState.device.volume_percent
-                  )
-                }
-              }
+            }
+          }
+          if (playerState.is_playing !== socket.playerState.is_playing) {
+            // play state has changed
+            const event = playerState.is_playing
+              ? 'playback_started'
+              : 'playback_paused'
+            socket.emit(event)
+          }
+          if (playerState.device.id !== socket.playerState.device.id) {
+            // device has changed
+            socket.emit('device_change', playerState.device)
+          } else {
+            // device is the same, check volume
+            if (
+              playerState.device.volume_percent !==
+              socket.playerState.device.volume_percent
+            ) {
+              // volume has changed
+              socket.emit('volume_change', playerState.device.volume_percent)
+            }
+          }
 
-              if (
-                !socket.hasNotifiedTrackEnd &&
-                playerState.progress_ms + C.HAS_FINISHED_THRESHOLD >
-                  playerState.item.duration_ms
-              ) {
-                socket.emit('track_end', playerState.item)
-                socket.hasNotifiedTrackEnd = true
-              }
+          if (
+            !socket.hasNotifiedTrackEnd &&
+            playerState.progress_ms + C.HAS_FINISHED_THRESHOLD >
+              playerState.item.duration_ms
+          ) {
+            socket.emit('track_end', playerState.item)
+            socket.hasNotifiedTrackEnd = true
+          }
 
-              socket.playerState = playerState
-            })
-            .catch(e => socket.emit(C.CONNECT_ERROR, e))
-        }, C.POLL_RATE)
-      })
-      .catch(e => socket.emit(C.CONNECT_ERROR, e))
+          socket.playerState = playerState
+        })
+        .catch(handleError)
+    }, C.POLL_RATE)
   })
 
   socket.on('play', track => {
     if (track) {
-      playTrack(socket.accessToken, track).catch(e =>
-        socket.emit(C.CONNECT_ERROR, e)
-      )
+      playTrack(socket.accessToken, track).catch(handleError)
     } else {
-      setPlayState(socket.accessToken, 'play').catch(e =>
-        socket.emit(C.CONNECT_ERROR, e)
-      )
+      setPlayState(socket.accessToken, 'play').catch(handleError)
     }
   })
 
   socket.on('resume', () => {
-    setPlayState(socket.accessToken, 'play').catch(e =>
-      socket.emit(C.CONNECT_ERROR, e)
-    )
+    setPlayState(socket.accessToken, 'play').catch(handleError)
   })
 
   socket.on('pause', () => {
-    setPlayState(socket.accessToken, 'pause').catch(e =>
-      socket.emit(C.CONNECT_ERROR, e)
-    )
+    setPlayState(socket.accessToken, 'pause').catch(handleError)
   })
 
   socket.on('seek', positionMs => {
-    seek(socket.accessToken, positionMs).catch(e =>
-      socket.emit(C.CONNECT_ERROR, e)
-    )
+    seek(socket.accessToken, positionMs).catch(handleError)
   })
 
   socket.on('set_volume', volumePercent => {
-    setVolume(socket.accessToken, volumePercent).catch(e =>
-      socket.emit(C.CONNECT_ERROR, e)
-    )
+    setVolume(socket.accessToken, volumePercent).catch(handleError)
   })
 
   socket.on('next_track', () => {
@@ -154,15 +155,11 @@ const spotifyConnectWs = socket => {
   })
 
   socket.on('previous_track', () => {
-    previousTrack(socket.accessToken).catch(e =>
-      socket.emit(C.CONNECT_ERROR, e)
-    )
+    previousTrack(socket.accessToken).catch(handleError)
   })
 
   socket.on('transfer_playback', device => {
-    transferPlayback(socket.accessToken, device).catch(e =>
-      socket.emit(C.CONNECT_ERROR, e)
-    )
+    transferPlayback(socket.accessToken, device).catch(handleError)
   })
 
   socket.on('access_token', accessToken => {

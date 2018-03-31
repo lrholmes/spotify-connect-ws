@@ -10,6 +10,12 @@ export const getPlayerState = accessToken => {
         'Content-Type': 'application/json'
       }
     })
+      .then(response => {
+        if (response.status === 202) {
+          return resolve({})
+        }
+        return response
+      })
       .then(r => r.json())
       .then(response => {
         if (response.error) {
