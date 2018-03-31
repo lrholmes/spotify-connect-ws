@@ -1,21 +1,19 @@
-WebSockets for Spotify Connect API
-===========
+# WebSockets for Spotify Connect API
 
-A Socket.IO plugin that enables interfacing with Spotify's Connect API using WebSockets. 
+A Socket.IO plugin that enables interfacing with Spotify's Connect API using WebSockets.
 
 The advantage of using this package is that it takes away the need for client-side polling (and diffing). By connecting the client to the server with WebSockets, the server will handle all of the polling and diffing, and the client will simply be notified whenever there is a change to the state of the player. This makes the client side code a lot cleaner and simpler.
 
-It should be noted that this project does not fully solve the problems discussed in [this issue](https://github.com/spotify/web-api/issues/492), in that there is still polling taking place (one request per second right now) and therefore hitting rate limits is a possibility.
-
-### Important Note
-As of right now, this package is the result half a day's work (inc. learning WebSockets), so this is untested, and probably unready for production applications. Having said that, I already _really_ like this method of interacting with the Connect API so will continue to work on this project until Spotify can provide their own solution. Hopefully you will be able to help out too.
+It should be noted that this project does not fully solve the problems discussed in [this issue](https://github.com/spotify/web-api/issues/492), in that there is still polling taking place (one request per second right now) and therefore hitting rate limits is a possibility. If you do hit the rate limit using this plugin, please let me know how many concurrent users caused it, because I would like to integrate functionality that automatically throttles the poll rate based on the number of concurrent websocket connections.
 
 ### Usage
+
 This package has been developed to work with an Express + Socket.IO server environment.
 
 If you want to skip the server setup and go straight to working with your app, use this testing url in the meantime: https://spotify-connect-ws.herokuapp.com/connect
 
 Server:
+
 ```bash
 npm install spotify-connect-ws --save
 # or
@@ -32,10 +30,10 @@ const server = app.listen(process.env.PORT || 3001)
 
 const io = socketio(server)
 io.of('connect').on('connection', connectSocket)
-
 ```
 
 Client:
+
 ```bash
 npm install socket.io-client --save
 # or
@@ -43,28 +41,33 @@ yarn add socket.io-client
 ```
 
 ```js
-  import openSocket from 'socket.io-client'
-  const io = openSocket('/connect')
-  // or if using testing url
-  const io = openSocket('https://spotify-connect-ws.herokuapp.com/connect')
+import openSocket from 'socket.io-client'
+const io = openSocket('/connect')
+// or if using testing url
+const io = openSocket('https://spotify-connect-ws.herokuapp.com/connect')
 
-  io.emit('initiate', { accessToken: 'access token' })
-
+io.emit('initiate', { accessToken: 'access token' })
 ```
+
 ### How it works
+
 To start watching the player for changes, use `io.emit('initiate', { accessToken })`. If successful, the first event receieved by the client, named `initial_state` will provide the full Player object from Spotify. You should use this to set up any views or state needed for your app. After this event, your client will receive events based on changes to the Player's state (e.g. playback paused, track changed). All of these events are listed below.
 
 ### Events
 
 #### Received Events
+
 These events are used in combination with `on()` to receive changes to the player state.
 
 Example:
+
 ```js
 io.on('track_change', track => {
   // update state/store with new track
 })
 ```
+
+`initial_state`: This event is received once, after initiating the connection. It contains the full Player object.
 
 `connect_error`: Any errors encountered on the server will be sent back to the client here.
 
@@ -81,9 +84,11 @@ io.on('track_change', track => {
 `track_end`: The current track has ended. This event is detected on the serverside by checking if the track is has less than two seconds of playback remaining. This is reliable in my testing, but there is probably a better way of checking for track end.
 
 #### Sent Events
+
 These are used to trigger playback events.
 
 Example:
+
 ```js
 io.emit('play', { id: '5Y17vKO1JtfnxIlM4vNQT6' })
 ```
@@ -108,12 +113,12 @@ io.emit('play', { id: '5Y17vKO1JtfnxIlM4vNQT6' })
 
 `access_token`: This will set the socket's access token. If you are refreshing your token, ensure to send this event after.
 
-
 ### Contributing
 
 Please contribute with any changes or fixes you'd like to see! Especially if you have any experience with Socket.IO, I'm sure that I've probably made some mistakes here or there.
 
 Some things that I would like to add soon:
+
 * The rest of the Player options (shuffle, repeat)
 * Tests
 * The ability to manage devices (events for new devices detected)
