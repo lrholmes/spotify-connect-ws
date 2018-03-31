@@ -34,6 +34,8 @@ const spotifyConnectWs = socket => {
     if (message !== socket.lastSentError) {
       socket.emit(C.CONNECT_ERROR, error)
       socket.lastSentError = message
+    } else {
+      socket.pollRate = socket.pollRate < 5000 ? socket.pollRate + 1000 : 5000
     }
   }
 
@@ -50,81 +52,84 @@ const spotifyConnectWs = socket => {
     }
 
     socket.accessToken = accessToken
-
-    socket.poll = setInterval(() => {
-      getPlayerState(socket.accessToken)
-        .then(playerState => {
-          if (!playerState.device) {
-            if (!socket.awaitingDevice) {
-              socket.emit(C.CONNECT_ERROR, 'No Active Device')
-              socket.awaitingDevice = true
-            }
-            return
-          }
-          socket.awaitingDevice = false
-          if (!socket.hasSentInitialState) {
-            socket.emit('initial_state', playerState)
-            socket.playerState = playerState
-            socket.hasSentInitialState = true
-            return
-          }
-          if (playerState.item.id !== socket.playerState.item.id) {
-            // track has changed
-            socket.emit('track_change', playerState.item)
-            socket.hasNotifiedTrackEnd = false
-          } else {
-            // track is the same, check if it has been scrubbed
-            if (playerState.is_playing) {
-              const negativeProgress =
-                playerState.progress_ms >
-                socket.playerState.progress_ms + C.HAS_SCRUBBED_THRESHOLD
-              const positiveProgess =
-                playerState.progress_ms <
-                socket.playerState.progress_ms - C.HAS_SCRUBBED_THRESHOLD
-              if (negativeProgress || positiveProgess) {
-                socket.emit(
-                  'seek',
-                  playerState.progress_ms,
-                  playerState.timestamp
-                )
-              }
-            }
-          }
-          if (playerState.is_playing !== socket.playerState.is_playing) {
-            // play state has changed
-            const event = playerState.is_playing
-              ? 'playback_started'
-              : 'playback_paused'
-            socket.emit(event)
-          }
-          if (playerState.device.id !== socket.playerState.device.id) {
-            // device has changed
-            socket.emit('device_change', playerState.device)
-          } else {
-            // device is the same, check volume
-            if (
-              playerState.device.volume_percent !==
-              socket.playerState.device.volume_percent
-            ) {
-              // volume has changed
-              socket.emit('volume_change', playerState.device.volume_percent)
-            }
-          }
-
-          if (
-            !socket.hasNotifiedTrackEnd &&
-            playerState.progress_ms + C.HAS_FINISHED_THRESHOLD >
-              playerState.item.duration_ms
-          ) {
-            socket.emit('track_end', playerState.item)
-            socket.hasNotifiedTrackEnd = true
-          }
-
-          socket.playerState = playerState
-        })
-        .catch(handleError)
-    }, C.POLL_RATE)
+    socket.poll()
   })
+
+  socket.poll = () => {
+    getPlayerState(socket.accessToken)
+      .then(playerState => {
+        if (!playerState.device) {
+          handleError('No active device')
+          return
+        }
+        if (!socket.hasSentInitialState) {
+          socket.emit('initial_state', playerState)
+          socket.playerState = playerState
+          socket.hasSentInitialState = true
+          return
+        }
+
+        // reset poll rate if no errors were encountered
+        socket.pollRate = C.POLL_RATE
+
+        if (playerState.item.id !== socket.playerState.item.id) {
+          // track has changed
+          socket.emit('track_change', playerState.item)
+          socket.hasNotifiedTrackEnd = false
+        } else {
+          // track is the same, check if it has been scrubbed
+          if (playerState.is_playing) {
+            const negativeProgress =
+              playerState.progress_ms >
+              socket.playerState.progress_ms + C.HAS_SCRUBBED_THRESHOLD
+            const positiveProgess =
+              playerState.progress_ms <
+              socket.playerState.progress_ms - C.HAS_SCRUBBED_THRESHOLD
+            if (negativeProgress || positiveProgess) {
+              socket.emit(
+                'seek',
+                playerState.progress_ms,
+                playerState.timestamp
+              )
+            }
+          }
+        }
+        if (playerState.is_playing !== socket.playerState.is_playing) {
+          // play state has changed
+          const event = playerState.is_playing
+            ? 'playback_started'
+            : 'playback_paused'
+          socket.emit(event)
+        }
+        if (playerState.device.id !== socket.playerState.device.id) {
+          // device has changed
+          socket.emit('device_change', playerState.device)
+        } else {
+          // device is the same, check volume
+          if (
+            playerState.device.volume_percent !==
+            socket.playerState.device.volume_percent
+          ) {
+            // volume has changed
+            socket.emit('volume_change', playerState.device.volume_percent)
+          }
+        }
+
+        if (
+          !socket.hasNotifiedTrackEnd &&
+          playerState.progress_ms + C.HAS_FINISHED_THRESHOLD >
+            playerState.item.duration_ms
+        ) {
+          socket.emit('track_end', playerState.item)
+          socket.hasNotifiedTrackEnd = true
+        }
+
+        socket.playerState = playerState
+      })
+      .catch(handleError)
+
+    setTimeout(socket.poll, socket.pollRate)
+  }
 
   socket.on('play', track => {
     if (track) {
