@@ -40,7 +40,7 @@ const spotifyConnectWs = socket => {
   }
 
   socket.on('disconnect', () => {
-    clearInterval(socket.poll)
+    socket.poll = () => {}
   })
 
   socket.on('initiate', ({ accessToken = null }) => {
@@ -77,22 +77,17 @@ const spotifyConnectWs = socket => {
           socket.emit('track_change', playerState.item)
           socket.hasNotifiedTrackEnd = false
         } else {
-          // track is the same, check if it has been scrubbed
-          if (playerState.is_playing) {
-            const negativeProgress =
-              playerState.progress_ms >
-              socket.playerState.progress_ms + C.HAS_SCRUBBED_THRESHOLD
-            const positiveProgess =
-              playerState.progress_ms <
-              socket.playerState.progress_ms - C.HAS_SCRUBBED_THRESHOLD
-            if (negativeProgress || positiveProgess) {
-              socket.emit(
-                'seek',
-                playerState.progress_ms,
-                playerState.timestamp
-              )
-            }
-          }
+        }
+
+        // check if the track has been scrubbed
+        const negativeProgress =
+          playerState.progress_ms >
+          socket.playerState.progress_ms + C.HAS_SCRUBBED_THRESHOLD
+        const positiveProgess =
+          playerState.progress_ms <
+          socket.playerState.progress_ms - C.HAS_SCRUBBED_THRESHOLD
+        if (negativeProgress || positiveProgess) {
+          socket.emit('seek', playerState.progress_ms, playerState.timestamp)
         }
         if (playerState.is_playing !== socket.playerState.is_playing) {
           // play state has changed
