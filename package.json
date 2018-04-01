@@ -1,6 +1,6 @@
 {
   "name": "spotify-connect-ws",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A WebSockets solution for Spotify's Connect API made using socket.io.",
   "main": "lib",
   "module": "lib/index.js",
