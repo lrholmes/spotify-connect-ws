@@ -12,6 +12,14 @@ This package has been developed to work with an Express + Socket.IO server envir
 
 If you want to skip the server setup and go straight to working with your app, use this testing url in the meantime: https://spotify-connect-ws.herokuapp.com/connect
 
+#### Examples
+
+I have made a couple of example projects that show how your server and client apps might look when using this package.
+
+Client (React.js): https://github.com/lrholmes/spotify-connect-ws-react-example
+
+Server: https://github.com/lrholmes/spotify-connect-ws-server-example
+
 Server:
 
 ```bash
